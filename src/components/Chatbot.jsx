@@ -1,0 +1,192 @@
+import React, { useState, useRef, useEffect } from 'react';
+import ChatService from '../services/chatService';
+import chatConfig from '../config/chatConfig';
+
+export default function Chatbot() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [chatService] = useState(() => new ChatService());
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(scrollToBottom, [messages]);
+
+  const sendMessage = async () => {
+    if (!input.trim() || loading) return;
+    
+    const userMessage = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { type: 'user', content: userMessage }]);
+    setLoading(true);
+
+    try {
+      // Convert messages to conversation history format
+      const conversationHistory = messages.map(msg => ({
+        role: msg.type === 'user' ? 'user' : 'assistant',
+        content: msg.content
+      }));
+
+      const result = await chatService.sendMessage(userMessage, conversationHistory);
+      
+      setMessages(prev => [...prev, { 
+        type: 'bot', 
+        content: result.content,
+        provider: result.provider,
+        success: result.success
+      }]);
+    } catch (error) {
+      setMessages(prev => [...prev, { 
+        type: 'bot', 
+        content: 'Sorry, I encountered an error. Please check your connection and try again.',
+        provider: 'Error',
+        success: false
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  return (
+    <>
+      {/* Chat Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-purple-600 to-purple-500 text-white rounded-2xl shadow-2xl transition-all duration-300 flex items-center justify-center z-50 hover:scale-110 hover:shadow-purple-500/50 ${
+          isOpen ? 'rotate-45' : ''
+        }`}
+      >
+        {isOpen ? (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        ) : (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+        )}
+      </button>
+
+      {/* Chat Window */}
+      <div className={`fixed bottom-24 right-6 w-96 h-[32rem] transition-all duration-300 z-50 ${
+        isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4 pointer-events-none'
+      }`}>
+        <div className="h-full bg-gradient-to-br from-slate-900 to-slate-800 backdrop-blur-xl border border-purple-500/30 rounded-2xl shadow-2xl shadow-purple-500/20 flex flex-col overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-purple-900/50 to-slate-900/50 backdrop-blur-md border-b border-purple-500/30 p-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-purple-500 rounded-lg flex items-center justify-center shadow-lg shadow-purple-500/50">
+                <span className="text-white text-sm font-bold">AI</span>
+              </div>
+              <div>
+                <h3 className="font-semibold text-white">Triax AI Assistant</h3>
+                <p className="text-xs text-slate-400">3D modeling expert • Always online</p>
+              </div>
+              <div className="ml-auto">
+                <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-purple-600 scrollbar-track-transparent">
+            {messages.length === 0 && (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-gradient-to-br from-purple-900/50 to-slate-900/50 border border-purple-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">🤖</span>
+                </div>
+                <p className="text-slate-300 text-sm mb-2">Hi! I'm your CAD assistant</p>
+                <p className="text-slate-500 text-xs">Ask me about 3D modeling, tools, or debugging</p>
+              </div>
+            )}
+            
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] ${msg.type === 'user' ? 'order-2' : 'order-1'}`}>
+                  {msg.type === 'bot' && (
+                    <div className="flex items-center space-x-2 mb-1">
+                      <div className="w-5 h-5 bg-gradient-to-br from-purple-600 to-purple-500 rounded-md flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">AI</span>
+                      </div>
+                      <span className="text-xs text-slate-400">Triax AI</span>
+                    </div>
+                  )}
+                  <div className={`p-3 rounded-2xl text-sm leading-relaxed ${
+                    msg.type === 'user' 
+                      ? 'bg-gradient-to-br from-purple-600 to-purple-500 text-white ml-4 shadow-lg shadow-purple-500/30' 
+                      : 'bg-gradient-to-br from-slate-800 to-slate-900 border border-purple-500/20 text-slate-100 mr-4'
+                  }`}>
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                    {chatConfig.ui.showProviderInfo && msg.provider && (
+                      <div className="text-xs opacity-60 mt-2 flex items-center space-x-1">
+                        <div className={`w-1 h-1 rounded-full ${msg.success ? 'bg-purple-400' : 'bg-red-400'}`}></div>
+                        <span>via {msg.provider}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {loading && (
+              <div className="flex justify-start">
+                <div className="flex items-center space-x-2 mb-1">
+                  <div className="w-5 h-5 bg-gradient-to-br from-purple-600 to-purple-500 rounded-md flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">AI</span>
+                  </div>
+                  <span className="text-xs text-slate-400">Triax AI</span>
+                </div>
+                <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-purple-500/20 p-3 rounded-2xl mr-4">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="p-4 border-t border-purple-500/30 bg-gradient-to-r from-slate-900/50 to-slate-800/50 backdrop-blur-md">
+            <div className="flex space-x-3">
+              <div className="flex-1 relative">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Ask about CAD concepts, tools, or debugging..."
+                  className="w-full bg-slate-800 border border-purple-500/30 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                  rows="1"
+                  disabled={loading}
+                  style={{ minHeight: '44px', maxHeight: '120px' }}
+                />
+              </div>
+              <button
+                onClick={sendMessage}
+                disabled={loading || !input.trim()}
+                className="w-11 h-11 bg-gradient-to-br from-purple-600 to-purple-500 text-white rounded-xl hover:shadow-lg hover:shadow-purple-500/50 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-200 flex items-center justify-center"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
